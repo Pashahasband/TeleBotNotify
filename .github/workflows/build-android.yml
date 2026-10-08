@@ -60,24 +60,38 @@ jobs:
             gstreamer1.0-plugins-good \
             openjdk-17-jdk
 
-      # 7. Принять лицензии Android SDK
-      - name: Accept Android SDK licenses
+      # 7. Установить Android SDK tools и принять лицензии
+      - name: Setup Android SDK
         run: |
-          # Создаём директорию licenses для buildozer SDK
+          # Создаём структуру buildozer SDK
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          
+          # Скачиваем command-line-tools
+          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O tools.zip
+          unzip -oq tools.zip
+          mv cmdline-tools latest
+          
+          # Создаём директорию licenses
           mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
           
-          # Создаём файлы лицензий с известными хэшами
+          # Создаём файлы лицензий
           echo -n "d56f518d493fc9e98e880d950c27d8b0b930c044" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           echo -n "84d6a5805b29c4faf0e9064f8ac21a958602e65b" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-arm-dbt-license
           echo -n "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.buildozer/android/platform/android-sdk/licenses/source-sdk-license
           echo -n "fc99cb245008e0c449b130918ff11b1b8184d46d" > ~/.buildozer/android/platform/android-sdk/licenses/ndk-license
           
-          echo "License files created:"
-          ls -la ~/.buildozer/android/platform/android-sdk/licenses/
+          # Устанавливаем build-tools через sdkmanager
+          export PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH
+          sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk "build-tools;34.0.0" "platform-tools" "platforms;android-34"
+          
+          echo "SDK setup complete"
+          ls ~/.buildozer/android/platform/android-sdk/
 
-      # 8. Собрать APK (buildozer сам скачает SDK и NDK, ~15-25 мин)
+      # 8. Собрать APK (buildozer сам скачает NDK, ~15-25 мин)
       - name: Build APK
         run: |
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
           buildozer android debug
         timeout-minutes: 60
 
