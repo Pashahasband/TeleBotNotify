@@ -116,8 +116,17 @@ jobs:
 
       # 9. Собрать APK
       - name: Build APK
+        env:
+          ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk
+          ANDROID_SDK_ROOT: $HOME/.buildozer/android/platform/android-sdk
         run: |
           export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          
+          # Проверяем что sdkmanager существует
+          echo "Checking sdkmanager..."
+          ls -la $ANDROID_HOME/tools/bin/sdkmanager || echo "sdkmanager not found!"
+          
           buildozer android debug
         timeout-minutes: 60
 
