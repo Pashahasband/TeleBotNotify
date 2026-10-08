@@ -73,19 +73,21 @@ jobs:
       # 8. Скачать SDK и NDK вручную
       - name: Download SDK and NDK
         run: |
+          set +e
           export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
           
           # Создаём структуру SDK
           mkdir -p $ANDROID_HOME/tools
           
-          # Скачиваем command-line-tools через wget
+          # Скачиваем command-line-tools через curl
           cd /tmp
           rm -rf cmdline-tools /tmp/tools.zip
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools.zip
-          ls -la /tmp/tools.zip
+          curl -sL https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -o /tmp/tools.zip
+          echo "Downloaded tools.zip, size: $(du -h /tmp/tools.zip | cut -f1)"
           
-          # Распаковываем через python3 (надёжнее чем unzip)
+          # Распаковываем через python3
           python3 .github/scripts/extract_sdk.py
+          echo "Python extract exit code: $?"
           
           # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
           # Копируем содержимое cmdline-tools в tools/
@@ -95,11 +97,11 @@ jobs:
           
           # Скачиваем build-tools и платформы
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1
+            "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1 || echo "sdkmanager build-tools failed"
           
           # Скачиваем NDK
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "ndk;25.2.9519653" 2>&1 || true
+            "ndk;25.2.9519653" 2>&1 || echo "sdkmanager NDK failed"
           
           # Buildozer ищет NDK в .buildozer/android/platform/android-ndk-r25b
           if [ -d "$ANDROID_HOME/ndk/25.2.9519653" ]; then
@@ -110,6 +112,7 @@ jobs:
           echo "SDK setup complete"
           ls -la $ANDROID_HOME/
           ls -la $ANDROID_HOME/tools/bin/
+          set -e
 
       # 9. Собрать APK
       - name: Build APK
