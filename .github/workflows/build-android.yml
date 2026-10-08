@@ -60,17 +60,13 @@ jobs:
             gstreamer1.0-plugins-good \
             openjdk-17-jdk
 
-      # 7. Установить Android SDK (первый раз — долго, ~5-10 мин)
-      - name: Setup Android SDK
-        run: |
-          buildozer android sdk
-
-      # 8. Собрать APK
+      # 7. Собрать APK (buildozer сам скачает SDK и NDK, ~15-25 мин)
       - name: Build APK
         run: |
           buildozer android debug
+        timeout-minutes: 60
 
-      # 9. Загрузить APK как artifact
+      # 8. Загрузить APK как artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
