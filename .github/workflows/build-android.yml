@@ -40,9 +40,9 @@ jobs:
           sudo apt-get install -y \
             python3-dev \
             libsdl2-dev \
-            libsdl2-image2.0-dev \
-            libsdl2-mixer2.0-dev \
-            libsdl2-ttf2.0-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
             libportmidi-dev \
             libswscale-dev \
             libavformat-dev \
