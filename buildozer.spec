@@ -3,6 +3,10 @@
 # (str) Title of your application
 title = Telegram Monitor
 
+# (str) Use latest python-for-android from master
+p4a.source = https://github.com/kivy/python-for-android.git
+p4a.branch = master
+
 # (str) Package name
 package.name = tgmonitor
 
