@@ -78,31 +78,44 @@ jobs:
           # Создаём структуру SDK
           mkdir -p $ANDROID_HOME/tools
           
-          # Скачиваем command-line-tools
+          # Скачиваем command-line-tools через wget
           cd /tmp
-          rm -rf cmdline-tools
+          rm -rf cmdline-tools /tmp/tools.zip
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools.zip
-          unzip -oq /tmp/tools.zip
-          echo "Unzip done, exit code: $?"
-          ls -la cmdline-tools/
-          ls -la cmdline-tools/bin/
+          ls -la /tmp/tools.zip
+          
+          # Распаковываем через python3 (надёжнее чем unzip)
+          python3 -c "
+import zipfile, os
+with zipfile.ZipFile('/tmp/tools.zip', 'r') as z:
+    z.extractall('/tmp/')
+print('Extracted cmdline-tools')
+print(os.listdir('/tmp/cmdline-tools/'))
+"
           
           # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
           # Копируем содержимое cmdline-tools в tools/
-          cp -r cmdline-tools/* $ANDROID_HOME/tools/
+          cp -r /tmp/cmdline-tools/* $ANDROID_HOME/tools/
           echo "SDK tools installed"
           ls -la $ANDROID_HOME/tools/bin/
           
           # Скачиваем build-tools и платформы
-          $ANDROID_HOME/tools/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
             "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1
           
           # Скачиваем NDK
-          $ANDROID_HOME/tools/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
             "ndk;25.2.9519653" 2>&1 || true
+          
+          # Buildozer ищет NDK в .buildozer/android/platform/android-ndk-r25b
+          if [ -d "$ANDROID_HOME/ndk/25.2.9519653" ]; then
+            ln -sfn $ANDROID_HOME/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
+            echo "NDK symlink created"
+          fi
           
           echo "SDK setup complete"
           ls -la $ANDROID_HOME/
+          ls -la $ANDROID_HOME/tools/bin/
 
       # 9. Собрать APK
       - name: Build APK
