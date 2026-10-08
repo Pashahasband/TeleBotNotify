@@ -86,8 +86,10 @@ jobs:
           echo "Downloaded tools.zip, size: $(du -h /tmp/tools.zip | cut -f1)"
           
           # Распаковываем через python3
-          python3 .github/scripts/extract_sdk.py
+          cd /tmp
+          python3 $GITHUB_WORKSPACE/.github/scripts/extract_sdk.py
           echo "Python extract exit code: $?"
+          ls -la /tmp/cmdline-tools/bin/ 2>/dev/null || echo "cmdline-tools/bin not found!"
           
           # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
           # Копируем содержимое cmdline-tools в tools/
