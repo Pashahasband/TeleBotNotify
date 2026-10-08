@@ -64,18 +64,16 @@ jobs:
       - name: Setup Android SDK
         run: |
           buildozer android sdk
-        working-directory: ./v2
 
       # 8. Собрать APK
       - name: Build APK
         run: |
           buildozer android debug
-        working-directory: ./v2
 
       # 9. Загрузить APK как artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TelegramMonitor-APK
-          path: v2/bin/*.apk
+          path: bin/*.apk
           retention-days: 30
