@@ -93,8 +93,12 @@ jobs:
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           sdkmanager --sdk_root=$ANDROID_HOME "build-tools;34.0.0" "platform-tools" "platforms;android-34" 2>&1
           
+          # Создаём symlink для buildozer (он ищет sdkmanager в tools/bin/)
+          ln -sfn $ANDROID_HOME/cmdline-tools/latest $ANDROID_HOME/tools
+          
           echo "SDK setup complete"
           ls -la $ANDROID_HOME/
+          ls -la $ANDROID_HOME/tools/bin/
           set -e
 
       # 8. Собрать APK (buildozer сам скачает NDK, ~15-25 мин)
