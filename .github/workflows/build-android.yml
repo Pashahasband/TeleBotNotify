@@ -85,14 +85,7 @@ jobs:
           ls -la /tmp/tools.zip
           
           # Распаковываем через python3 (надёжнее чем unzip)
-          cat > /tmp/extract.py << 'PYEOF'
-import zipfile, os
-with zipfile.ZipFile('/tmp/tools.zip', 'r') as z:
-    z.extractall('/tmp/')
-print('Extracted cmdline-tools')
-print(os.listdir('/tmp/cmdline-tools/'))
-PYEOF
-          python3 /tmp/extract.py
+          python3 .github/scripts/extract_sdk.py
           
           # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
           # Копируем содержимое cmdline-tools в tools/
