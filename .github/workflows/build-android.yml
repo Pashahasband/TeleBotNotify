@@ -70,7 +70,40 @@ jobs:
           echo -n "fc99cb245008e0c449b130918ff11b1b8184d46d" > ~/.buildozer/android/platform/android-sdk/licenses/ndk-license
           echo "Licenses accepted"
 
-      # 8. Собрать APK (buildozer сам скачает SDK и NDK, ~15-25 мин)
+      # 8. Скачать SDK и NDK вручную
+      - name: Download SDK and NDK
+        run: |
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          
+          # Создаём структуру SDK
+          mkdir -p $ANDROID_HOME/tools
+          
+          # Скачиваем command-line-tools
+          cd /tmp
+          rm -rf /tmp/tools_download
+          mkdir -p /tmp/tools_download
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools_download/tools.zip
+          unzip -oq /tmp/tools_download/tools.zip -d /tmp/tools_download
+          
+          # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
+          # Перемещаем cmdline-tools содержимое прямо в tools/
+          mv /tmp/tools_download/cmdline-tools/* $ANDROID_HOME/tools/
+          rmdir /tmp/tools_download/cmdline-tools
+          echo "SDK tools installed"
+          ls -la $ANDROID_HOME/tools/bin/
+          
+          # Скачиваем build-tools и платформы
+          $ANDROID_HOME/tools/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+            "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1
+          
+          # Скачиваем NDK
+          $ANDROID_HOME/tools/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+            "ndk;25.2.9519653" 2>&1 || true
+          
+          echo "SDK setup complete"
+          ls -la $ANDROID_HOME/
+
+      # 9. Собрать APK
       - name: Build APK
         run: |
           export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
