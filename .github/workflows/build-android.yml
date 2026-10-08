@@ -66,11 +66,11 @@ jobs:
           # Создаём структуру buildozer SDK
           mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
           
-          # Скачиваем command-line-tools
-          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          # Скачиваем command-line-tools в tmp
+          cd /tmp
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O tools.zip
           unzip -oq tools.zip
-          mv cmdline-tools latest
+          mv cmdline-tools ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
           
           # Создаём директорию licenses
           mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
