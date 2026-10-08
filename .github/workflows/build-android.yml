@@ -32,7 +32,7 @@ jobs:
       - name: Install system dependencies (base)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git ffmpeg wget
+          sudo apt-get install -y build-essential git ffmpeg wget unzip
 
       # 5. Установить системные зависимости (часть 2 — SDL и мультимедиа)
       - name: Install system dependencies (multimedia)
