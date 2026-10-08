@@ -74,7 +74,20 @@ jobs:
       - name: Build APK
         run: |
           export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-          buildozer android debug
+          
+          # Запускаем buildozer — он скачает SDK и NDK
+          # Если sdkmanager не найден в tools/bin/, создаём symlink
+          buildozer android debug 2>&1 || {
+            echo "Build failed, checking SDK structure..."
+            ls -la $ANDROID_HOME/
+            if [ -d "$ANDROID_HOME/cmdline-tools" ]; then
+              echo "Creating symlink tools -> cmdline-tools/latest"
+              ln -sfn $ANDROID_HOME/cmdline-tools/latest $ANDROID_HOME/tools
+              buildozer android debug
+            else
+              exit 1
+            fi
+          }
         timeout-minutes: 60
 
       # 9. Загрузить APK как artifact
