@@ -80,15 +80,16 @@ jobs:
           
           # Скачиваем command-line-tools
           cd /tmp
-          rm -rf /tmp/tools_download
-          mkdir -p /tmp/tools_download
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools_download/tools.zip
-          unzip -oq /tmp/tools_download/tools.zip -d /tmp/tools_download
+          rm -rf cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools.zip
+          unzip -oq /tmp/tools.zip
+          echo "Unzip done, exit code: $?"
+          ls -la cmdline-tools/
+          ls -la cmdline-tools/bin/
           
           # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
-          # Перемещаем cmdline-tools содержимое прямо в tools/
-          mv /tmp/tools_download/cmdline-tools/* $ANDROID_HOME/tools/
-          rmdir /tmp/tools_download/cmdline-tools
+          # Копируем содержимое cmdline-tools в tools/
+          cp -r cmdline-tools/* $ANDROID_HOME/tools/
           echo "SDK tools installed"
           ls -la $ANDROID_HOME/tools/bin/
           
