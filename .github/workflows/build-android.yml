@@ -16,118 +16,94 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Python
+      # 2. Setup Java (требуется для Android)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 3. Установить зависимости
+      # 4. Установить зависимости
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install buildozer cython
 
-      # 4. Установить системные зависимости (часть 1 — базовые)
-      - name: Install system dependencies (base)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git ffmpeg wget unzip
-
-      # 5. Установить системные зависимости (часть 2 — SDL и мультимедиа)
-      - name: Install system dependencies (multimedia)
-        run: |
-          sudo apt-get install -y \
-            python3-dev \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev
-
-      # 6. Установить GStreamer и JDK
-      - name: Install system dependencies (GStreamer + JDK)
+      # 5. Установить системные зависимости
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libunwind-dev \
-            libgstreamer1.0-dev \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            openjdk-17-jdk
+            build-essential git ffmpeg wget unzip \
+            python3-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+            zlib1g-dev libunwind-dev libgstreamer1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good
 
-      # 7. Принять лицензии Android SDK (buildozer сам скачает SDK)
+      # 6. Принять лицензии Android SDK
       - name: Accept Android SDK licenses
         run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo -n "d56f518d493fc9e98e880d950c27d8b0b930c044" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo -n "84d6a5805b29c4faf0e9064f8ac21a958602e65b" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-arm-dbt-license
-          echo -n "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.buildozer/android/platform/android-sdk/licenses/source-sdk-license
-          echo -n "fc99cb245008e0c449b130918ff11b1b8184d46d" > ~/.buildozer/android/platform/android-sdk/licenses/ndk-license
-          echo "Licenses accepted"
+          mkdir -p ~/.android
+          echo "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.android/repositories.cfg
+          
+          # Создаём директорию для SDK
+          export ANDROID_HOME=$HOME/.android/android-sdk-linux
+          mkdir -p $ANDROID_HOME
 
-      # 8. Скачать SDK и NDK вручную
-      - name: Download SDK and NDK
+      # 7. Скачать и установить Android SDK
+      - name: Install Android SDK
         run: |
-          set +e
-          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_HOME=$HOME/.android/android-sdk-linux
+          mkdir -p $ANDROID_HOME/cmdline-tools
           
-          # Создаём структуру SDK
-          mkdir -p $ANDROID_HOME/tools
-          
-          # Скачиваем command-line-tools через curl
+          # Скачиваем command-line-tools
           cd /tmp
-          rm -rf cmdline-tools /tmp/tools.zip
-          curl -sL https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -o /tmp/tools.zip
-          echo "Downloaded tools.zip, size: $(du -h /tmp/tools.zip | cut -f1)"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk.zip
           
-          # Распаковываем через python3
-          cd /tmp
-          python3 $GITHUB_WORKSPACE/.github/scripts/extract_sdk.py
-          echo "Python extract exit code: $?"
-          ls -la /tmp/cmdline-tools/bin/ 2>/dev/null || echo "cmdline-tools/bin not found!"
+          # Распаковываем
+          python3 -c "
+import zipfile
+with zipfile.ZipFile('/tmp/sdk.zip', 'r') as z:
+    z.extractall('/tmp/')
+"
           
-          # Buildozer ищет sdkmanager в tools/bin/, а zip распаковывает в cmdline-tools/
-          # Копируем содержимое cmdline-tools в tools/
-          cp -r /tmp/cmdline-tools/* $ANDROID_HOME/tools/
-          echo "SDK tools installed"
-          ls -la $ANDROID_HOME/tools/bin/
+          # Перемещаем cmdline-tools в нужное место
+          mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
           
-          # Скачиваем build-tools и платформы
+          # Создаём symlink tools -> cmdline-tools/latest для buildozer
+          ln -sfn $ANDROID_HOME/cmdline-tools/latest $ANDROID_HOME/tools
+          
+          # Проверяем
+          ls -la $ANDROID_HOME/tools/bin/sdkmanager
+          
+          # Устанавливаем необходимые компоненты
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "build-tools;34.0.0" "platforms;android-34" "platform-tools" 2>&1 || echo "sdkmanager build-tools failed"
+            "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;25.2.9519653"
           
-          # Скачиваем NDK
-          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "ndk;25.2.9519653" 2>&1 || echo "sdkmanager NDK failed"
+          # Создаём symlink для NDK
+          mkdir -p $HOME/.buildozer/android/platform
+          ln -sfn $ANDROID_HOME/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
           
-          # Buildozer ищет NDK в .buildozer/android/platform/android-ndk-r25b
-          if [ -d "$ANDROID_HOME/ndk/25.2.9519653" ]; then
-            ln -sfn $ANDROID_HOME/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
-            echo "NDK symlink created"
-          fi
-          
-          echo "SDK setup complete"
+          echo "SDK installed successfully"
           ls -la $ANDROID_HOME/
-          ls -la $ANDROID_HOME/tools/bin/
-          set -e
 
-      # 9. Собрать APK
+      # 8. Собрать APK
       - name: Build APK
         env:
-          ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk
-          ANDROID_SDK_ROOT: $HOME/.buildozer/android/platform/android-sdk
+          ANDROID_HOME: $HOME/.android/android-sdk-linux
+          ANDROID_SDK_ROOT: $HOME/.android/android-sdk-linux
         run: |
-          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_HOME=$HOME/.android/android-sdk-linux
           export ANDROID_SDK_ROOT=$ANDROID_HOME
           
-          # Проверяем что sdkmanager существует
-          echo "Checking sdkmanager..."
-          ls -la $ANDROID_HOME/tools/bin/sdkmanager || echo "sdkmanager not found!"
+          echo "SDK location: $ANDROID_HOME"
+          ls -la $ANDROID_HOME/tools/bin/sdkmanager
           
           buildozer android debug
         timeout-minutes: 60
