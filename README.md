@@ -12,9 +12,16 @@ Android-приложение для мониторинга Telegram-канало
 
 ## Установка
 
-### Способ 1: Buildozer (Linux — рекомендуется)
+### Способ 1: GitHub Actions (любая ОС — рекомендуется)
 
-Buildozer работает только на **Linux** (Ubuntu/Debian). На macOS/Windows — используй Way 2.
+1. Запушь проект на GitHub
+2. Перейди в **Actions** → **Build Android**
+3. Нажми **Run workflow** или подожди автозапуска при push
+4. Скачай APK из артефактов
+
+### Способ 2: Buildozer (Linux — для разработки)
+
+Buildozer работает только на **Linux** (Ubuntu/Debian).
 
 ```bash
 # 1. Установи зависимости
@@ -29,7 +36,7 @@ sudo apt install -y python3-pip build-essential git \
 # 2. Установи buildozer
 pip install buildozer cython
 
-# 3. Установи Android SDK/NDK (первый раз)
+# 3. Установи Android SDK/NDK (первый раз — долго)
 buildozer android sdk
 
 # 4. Собери APK
@@ -37,35 +44,6 @@ buildozer android debug
 
 # APK будет в: bin/TelegramMonitor-0.1.0-arm64-v8a-debug.apk
 ```
-
-### Способ 2: GitHub Actions (любая ОС)
-
-Используй готовый workflow:
-
-1. Запушь проект на GitHub
-2. Создай `.github/workflows/build-android.yml`:
-
-```yaml
-name: Build Android
-on: [push, workflow_dispatch]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install buildozer cython
-      - run: sudo apt update && sudo apt install -y python3-pip build-essential git python3-dev ffmpeg
-      - run: buildozer android debug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: bin/*.apk
-```
-
-3. Скачай APK из Actions
 
 ### Способ 3: Termux (на самом Android)
 
