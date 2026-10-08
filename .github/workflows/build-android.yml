@@ -60,9 +60,21 @@ jobs:
             gstreamer1.0-plugins-good \
             openjdk-17-jdk
 
-      # 7. Собрать APK (buildozer сам скачает SDK и NDK, ~15-25 мин)
+      # 7. Принять лицензии Android SDK
+      - name: Accept Android SDK licenses
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O tools.zip
+          unzip -q tools.zip
+          mv cmdline-tools latest
+          yes | ./sdkmanager --licenses
+
+      # 8. Собрать APK (buildozer сам скачает SDK и NDK, ~15-25 мин)
       - name: Build APK
         run: |
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           buildozer android debug
         timeout-minutes: 60
 
