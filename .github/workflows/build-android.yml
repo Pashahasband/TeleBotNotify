@@ -63,31 +63,39 @@ jobs:
       # 7. Установить Android SDK tools и принять лицензии
       - name: Setup Android SDK
         run: |
-          # Создаём структуру buildozer SDK
-          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          set +e
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p $ANDROID_HOME/cmdline-tools
           
-          # Скачиваем и распаковываем command-line-tools
+          # Скачиваем command-line-tools
           cd /tmp
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O tools.zip
+          rm -rf /tmp/unzip_tmp /tmp/tools.zip
           mkdir -p /tmp/unzip_tmp
-          unzip -oq tools.zip -d /tmp/unzip_tmp
-          mv /tmp/unzip_tmp/cmdline-tools ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11704137_latest.zip -O /tmp/tools.zip
+          echo "Unzipping to /tmp/unzip_tmp..."
+          unzip -oq /tmp/tools.zip -d /tmp/unzip_tmp 2>&1
+          UNZIP_EXIT=$?
+          echo "Unzip exit code: $UNZIP_EXIT"
+          ls -la /tmp/unzip_tmp/
+          mv /tmp/unzip_tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          echo "Moved cmdline-tools"
           
           # Создаём директорию licenses
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          mkdir -p $ANDROID_HOME/licenses
           
           # Создаём файлы лицензий
-          echo -n "d56f518d493fc9e98e880d950c27d8b0b930c044" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo -n "84d6a5805b29c4faf0e9064f8ac21a958602e65b" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-arm-dbt-license
-          echo -n "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.buildozer/android/platform/android-sdk/licenses/source-sdk-license
-          echo -n "fc99cb245008e0c449b130918ff11b1b8184d46d" > ~/.buildozer/android/platform/android-sdk/licenses/ndk-license
+          echo -n "d56f518d493fc9e98e880d950c27d8b0b930c044" > $ANDROID_HOME/licenses/android-sdk-license
+          echo -n "84d6a5805b29c4faf0e9064f8ac21a958602e65b" > $ANDROID_HOME/licenses/android-sdk-arm-dbt-license
+          echo -n "8933bad161af4178b1185d1a37fbf41ea526c4a" > $ANDROID_HOME/licenses/source-sdk-license
+          echo -n "fc99cb245008e0c449b130918ff11b1b8184d46d" > $ANDROID_HOME/licenses/ndk-license
           
           # Устанавливаем build-tools через sdkmanager
-          export PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH
-          sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk "build-tools;34.0.0" "platform-tools" "platforms;android-34"
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          sdkmanager --sdk_root=$ANDROID_HOME "build-tools;34.0.0" "platform-tools" "platforms;android-34" 2>&1
           
           echo "SDK setup complete"
-          ls ~/.buildozer/android/platform/android-sdk/
+          ls -la $ANDROID_HOME/
+          set -e
 
       # 8. Собрать APK (buildozer сам скачает NDK, ~15-25 мин)
       - name: Build APK
