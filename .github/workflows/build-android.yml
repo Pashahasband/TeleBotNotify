@@ -75,7 +75,8 @@ jobs:
           # Создаём symlink tools -> cmdline-tools/latest для buildozer
           ln -sfn $ANDROID_HOME/cmdline-tools/latest $ANDROID_HOME/tools
           
-          # Проверяем
+          # Проверяем и даём права
+          chmod +x $ANDROID_HOME/tools/bin/sdkmanager
           ls -la $ANDROID_HOME/tools/bin/sdkmanager
           
           # Устанавливаем необходимые компоненты
