@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Checkout кода
+      # 1. Checkout кода в v2/
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -33,7 +33,6 @@ jobs:
 
       # 4. Установить зависимости
       - name: Install dependencies
-        working-directory: ./v2
         run: |
           python -m pip install --upgrade pip
           pip install buildozer cython
@@ -54,14 +53,11 @@ jobs:
         run: |
           mkdir -p ~/.android
           echo "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.android/repositories.cfg
-          
-          # Создаём директорию для SDK
           export ANDROID_HOME=$HOME/.android/android-sdk-linux
           mkdir -p $ANDROID_HOME
 
       # 7. Скачать и установить Android SDK
       - name: Install Android SDK
-        working-directory: ./v2
         run: |
           export ANDROID_HOME=$HOME/.android/android-sdk-linux
           mkdir -p $ANDROID_HOME/cmdline-tools
@@ -71,7 +67,7 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk.zip
           
           # Распаковываем
-          python3 $GITHUB_WORKSPACE/.github/scripts/extract_sdk.py
+          python3 v2/.github/scripts/extract_sdk.py
           
           # Перемещаем cmdline-tools в нужное место
           mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
@@ -138,7 +134,6 @@ jobs:
 
       # 9. Загрузить APK как artifact
       - name: Upload APK
-        working-directory: ./v2
         uses: actions/upload-artifact@v4
         with:
           name: TelegramMonitor-APK
