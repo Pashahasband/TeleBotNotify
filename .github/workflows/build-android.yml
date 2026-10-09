@@ -110,16 +110,23 @@ jobs:
         env:
           ANDROID_HOME: $HOME/.android/android-sdk-linux
           ANDROID_SDK_ROOT: $HOME/.android/android-sdk-linux
-          ANDROID_NDK_HOME: $HOME/.android/android-sdk-linux/ndk/25.2.9519653
         run: |
           export ANDROID_HOME=$HOME/.android/android-sdk-linux
           export ANDROID_SDK_ROOT=$ANDROID_HOME
-          export ANDROID_NDK_HOME=$HOME/.android/android-sdk-linux/ndk/25.2.9519653
+          
+          # Скачиваем NDK вручную и кладём в .buildozer
+          mkdir -p $HOME/.buildozer/android/platform
+          cd /tmp
+          rm -rf android-ndk-r25b*
+          curl -sL https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -o /tmp/ndk.zip
+          echo "NDK downloaded, size: $(du -h /tmp/ndk.zip | cut -f1)"
+          unzip -q /tmp/ndk.zip -d /tmp/
+          mv /tmp/android-ndk-r25b $HOME/.buildozer/android/platform/android-ndk-r25b
+          echo "NDK installed at:"
+          ls -la $HOME/.buildozer/android/platform/android-ndk-r25b/
           
           echo "SDK location: $ANDROID_HOME"
           ls -la $ANDROID_HOME/tools/bin/sdkmanager
-          echo "NDK location: $ANDROID_NDK_HOME"
-          ls -la $ANDROID_NDK_HOME/
           
           buildozer android debug
         timeout-minutes: 60

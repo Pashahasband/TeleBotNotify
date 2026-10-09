@@ -39,9 +39,11 @@ android.api = 33
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 25.2.9519653
+android.ndk = 25b
 # (str) Use NDK from ANDROID_NDK_HOME
-p4a.ndk_version = 25.2.9519653
+p4a.ndk_version = 25b
+# (str) Use pre-installed NDK
+p4a.force_android_sdk_clone = 0
 
 # (str) The Android arch to build for
 android.archs = arm64-v8a,armeabi-v7a
