@@ -81,7 +81,19 @@ jobs:
           
           # Устанавливаем необходимые компоненты
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;25.2.9519653"
+            "platform-tools" "build-tools;34.0.0" "platforms;android-34" 2>&1 || true
+          
+          # Устанавливаем NDK отдельно
+          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+            "ndk;25.2.9519653" 2>&1 || {
+            echo "NDK 25.2.9519653 not found, listing available NDKs..."
+            $ANDROID_HOME/tools/bin/sdkmanager --list --sdk_root=$ANDROID_HOME 2>&1 | grep ndk || true
+            exit 1
+          }
+          
+          # Проверяем что NDK установлен
+          echo "NDK installed at:"
+          ls -la $ANDROID_HOME/ndk/
           
           # Создаём symlink для NDK
           mkdir -p $HOME/.buildozer/android/platform
