@@ -95,12 +95,16 @@ jobs:
         env:
           ANDROID_HOME: $HOME/.android/android-sdk-linux
           ANDROID_SDK_ROOT: $HOME/.android/android-sdk-linux
+          ANDROID_NDK_HOME: $HOME/.android/android-sdk-linux/ndk/25.2.9519653
         run: |
           export ANDROID_HOME=$HOME/.android/android-sdk-linux
           export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export ANDROID_NDK_HOME=$HOME/.android/android-sdk-linux/ndk/25.2.9519653
           
           echo "SDK location: $ANDROID_HOME"
           ls -la $ANDROID_HOME/tools/bin/sdkmanager
+          echo "NDK location: $ANDROID_NDK_HOME"
+          ls -la $ANDROID_NDK_HOME/
           
           buildozer android debug
         timeout-minutes: 60
