@@ -83,7 +83,10 @@ jobs:
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
             "platform-tools" "build-tools;34.0.0" "platforms;android-34" 2>&1 || true
           
-          # Устанавливаем NDK отдельно
+          # Принимаем лицензию NDK
+          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>&1 || true
+          
+          # Устанавливаем NDK
           $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
             "ndk;25.2.9519653" 2>&1 || {
             echo "NDK 25.2.9519653 not found, listing available NDKs..."
