@@ -67,11 +67,7 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk.zip
           
           # Распаковываем
-          python3 -c "
-import zipfile
-with zipfile.ZipFile('/tmp/sdk.zip', 'r') as z:
-    z.extractall('/tmp/')
-"
+          python3 $GITHUB_WORKSPACE/.github/scripts/extract_sdk.py
           
           # Перемещаем cmdline-tools в нужное место
           mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
