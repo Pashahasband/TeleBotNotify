@@ -21,7 +21,7 @@ source.include_exts = py,json,kv
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,telethon,aiogram,aiohttp,certifi,yarl
+requirements = python3==3.14.2,hostpython3==3.14.2,kivy==2.3.1,telethon==1.36.0,pyaes==1.6.1,rsa==4.9.1,pyasn1==0.6.1,aiogram==3.31.0,aiohttp==3.14.4,certifi,yarl==1.25.1,pydantic==2.12.3,pydantic-core==2.41.4,frozenlist==1.8.0,propcache==0.5.4
 
 # (str) Supported orientation (landscape, sensorLandscape, portrait or all)
 orientation = portrait
@@ -62,3 +62,9 @@ comment = Мониторинг Telegram-каналов
 
 # (list) Author information
 author = Your Name <your@email.com>
+
+# Non-interactive, reproducible Android build configuration.
+android.accept_sdk_license = True
+p4a.source_dir = .p4a
+p4a.local_recipes = ./recipes
+source.exclude_dirs = recipes,scripts,.git,.github

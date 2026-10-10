@@ -1,0 +1,8 @@
+.buildozer/
+.p4a/
+.venv/
+__pycache__/
+*.py[cod]
+bin/*.apk
+bin/*.aab
+bin/SHA256SUMS

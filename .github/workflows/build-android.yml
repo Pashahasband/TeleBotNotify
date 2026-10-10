@@ -5,137 +5,67 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch:  # Ручной запуск
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
-      # 1. Checkout кода в v2/
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: v2
 
-      # 2. Setup Java (требуется для Android)
-      - name: Setup Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
-      # 3. Setup Python
-      - name: Setup Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: pip
 
-      # 4. Установить зависимости
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install buildozer cython
+      - name: Cache Android build tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+            ~/.cargo
+            ~/.rustup
+          key: android-${{ runner.os }}-${{ hashFiles('buildozer.spec', 'recipes/**', 'scripts/setup_p4a.py') }}
 
-      # 5. Установить системные зависимости
-      - name: Install system dependencies
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git ffmpeg wget unzip \
-            python3-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            zlib1g-dev libunwind-dev libgstreamer1.0-dev \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake build-essential cmake gettext git \
+            libffi-dev libltdl-dev libncurses-dev libssl-dev libtool \
+            pkg-config unzip wget zip zlib1g-dev
+          python -m pip install \
+            "buildozer==1.6.0" "Cython==0.29.34" "setuptools<81"
+          rustup toolchain install stable --profile minimal
 
-      # 6. Принять лицензии Android SDK
-      - name: Accept Android SDK licenses
+      - name: Build debug APK
+        run: scripts/build_android.sh
+
+      - name: Verify artifact
         run: |
-          mkdir -p ~/.android
-          echo "8933bad161af4178b1185d1a37fbf41ea526c4a" > ~/.android/repositories.cfg
-          export ANDROID_HOME=$HOME/.android/android-sdk-linux
-          mkdir -p $ANDROID_HOME
+          unzip -t bin/*.apk
+          sha256sum bin/*.apk | tee bin/SHA256SUMS
 
-      # 7. Скачать и установить Android SDK
-      - name: Install Android SDK
-        run: |
-          export ANDROID_HOME=$HOME/.android/android-sdk-linux
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          
-          # Скачиваем command-line-tools
-          cd /tmp
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk.zip
-          
-          # Распаковываем
-          python3 $GITHUB_WORKSPACE/v2/.github/scripts/extract_sdk.py
-          
-          # Перемещаем cmdline-tools в нужное место
-          mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-          
-          # Создаём symlink tools -> cmdline-tools/latest для buildozer
-          ln -sfn $ANDROID_HOME/cmdline-tools/latest $ANDROID_HOME/tools
-          
-          # Проверяем и даём права
-          chmod +x $ANDROID_HOME/tools/bin/sdkmanager
-          ls -la $ANDROID_HOME/tools/bin/sdkmanager
-          
-          # Устанавливаем необходимые компоненты
-          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "platform-tools" "build-tools;34.0.0" "platforms;android-34" 2>&1 || true
-          
-          # Принимаем лицензию NDK
-          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>&1 || true
-          
-          # Устанавливаем NDK
-          $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "ndk;25.2.9519653" 2>&1 || {
-            echo "NDK 25.2.9519653 not found, listing available NDKs..."
-            $ANDROID_HOME/tools/bin/sdkmanager --list --sdk_root=$ANDROID_HOME 2>&1 | grep ndk || true
-            exit 1
-          }
-          
-          # Проверяем что NDK установлен
-          echo "NDK installed at:"
-          ls -la $ANDROID_HOME/ndk/
-          
-          # Создаём symlink для NDK
-          mkdir -p $HOME/.buildozer/android/platform
-          ln -sfn $ANDROID_HOME/ndk/25.2.9519653 $HOME/.buildozer/android/platform/android-ndk-r25b
-          
-          echo "SDK installed successfully"
-          ls -la $ANDROID_HOME/
-
-      # 8. Собрать APK
-      - name: Build APK
-        working-directory: ./v2
-        env:
-          ANDROID_HOME: $HOME/.android/android-sdk-linux
-          ANDROID_SDK_ROOT: $HOME/.android/android-sdk-linux
-        run: |
-          export ANDROID_HOME=$HOME/.android/android-sdk-linux
-          export ANDROID_SDK_ROOT=$ANDROID_HOME
-          
-          # Скачиваем NDK вручную и кладём в .buildozer
-          mkdir -p $HOME/.buildozer/android/platform
-          cd /tmp
-          rm -rf android-ndk-r25b*
-          curl -sL https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -o /tmp/ndk.zip
-          echo "NDK downloaded, size: $(du -h /tmp/ndk.zip | cut -f1)"
-          unzip -q /tmp/ndk.zip -d /tmp/
-          mv /tmp/android-ndk-r25b $HOME/.buildozer/android/platform/android-ndk-r25b
-          echo "NDK installed at:"
-          ls -la $HOME/.buildozer/android/platform/android-ndk-r25b/
-          
-          echo "SDK location: $ANDROID_HOME"
-          ls -la $ANDROID_HOME/tools/bin/sdkmanager
-          
-          buildozer android debug
-        timeout-minutes: 60
-
-      # 9. Загрузить APK как artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TelegramMonitor-APK
-          path: v2/bin/*.apk
+          path: |
+            bin/*.apk
+            bin/SHA256SUMS
+          if-no-files-found: error
           retention-days: 30
