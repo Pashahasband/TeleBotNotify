@@ -4,6 +4,7 @@ Kivy UI с двумя экранами: Настройки и Мониторин
 """
 
 import asyncio
+import threading
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.uix.boxlayout import BoxLayout
@@ -11,7 +12,6 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
-from kivy.uix.spinner import Spinner
 from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.utils import platform
@@ -79,7 +79,6 @@ class SettingsScreen(Screen):
                 background_color=CARD_BG,
                 foreground_color=TEXT,
             )
-            txt.bind(text=lambda instance, k=key: self.save_temp(k, instance.text))
             row.add_widget(lbl)
             row.add_widget(txt)
             self.inputs[key] = txt
@@ -118,10 +117,6 @@ class SettingsScreen(Screen):
         for key, txt in self.inputs.items():
             txt.text = data.get(key, "")
 
-    def save_temp(self, key, value):
-        """Временно сохраняет значение."""
-        pass  # Сохраняем при нажатии кнопки
-
     def save_config(self):
         """Сохраняет настройки."""
         data = {}
@@ -148,12 +143,16 @@ class MonitorScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.service = MonitorService()
-        self.monitor_task = None
+        self.monitor_thread = None
         self.setup_ui()
 
     def set_service(self, service):
         """Получает сервис из SettingsScreen (общий экземпляр)."""
         self.service = service
+        self.service.set_callbacks(
+            on_log=self.on_log_message,
+            on_status=self.on_status_update,
+        )
 
     def setup_ui(self):
         layout = BoxLayout(orientation="vertical", padding=15, spacing=10)
@@ -247,17 +246,6 @@ class MonitorScreen(Screen):
 
         self.add_widget(layout)
 
-        # Периодическое обновление лога
-        Clock.schedule_interval(self.update_log_display, 1.0)
-
-    def set_service(self, service):
-        """Устанавливает сервис и подключает коллбеки."""
-        self.service = service
-        self.service.set_callbacks(
-            on_log=self.on_log_message,
-            on_status=self.on_status_update,
-        )
-
     def on_log_message(self, message: str):
         """Вызывается при новом сообщении в лог."""
         Clock.schedule_once(
@@ -288,10 +276,6 @@ class MonitorScreen(Screen):
             old = self.log_labels.pop(0)
             self.log_layout.remove_widget(old)
 
-    def update_log_display(self, dt):
-        """Периодически обновляет отображение (для совместимости)."""
-        pass  # Обновление происходит через коллбеки
-
     def update_status_display(self, status: str, running: bool):
         """Обновляет отображение статуса."""
         if running:
@@ -306,30 +290,35 @@ class MonitorScreen(Screen):
             self.stop_btn.disabled = True
 
     def start_monitoring(self):
-        """Запускает мониторинг."""
+        """Запускает мониторинг в отдельном потоке."""
         self.start_btn.text = "⏳ Запуск..."
         self.start_btn.disabled = True
 
-        # Запускаем в отдельном event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        self.monitor_task = loop.create_task(self._run_async())
-        loop.run_until_complete(self.monitor_task)
+        # Запускаем в отдельном потоке, чтобы не блокировать Kivy UI
+        self.monitor_thread = threading.Thread(
+            target=self._run_in_thread, daemon=True
+        )
+        self.monitor_thread.start()
 
-    async def _run_async(self):
-        """Запускает сервис мониторинга."""
+    def _run_in_thread(self):
+        """Запускает asyncio в отдельном потоке."""
         try:
-            await self.service.start_monitoring()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self.service.start_monitoring())
         except Exception as e:
             self.service.log(f"Критическая ошибка: {e}")
         finally:
-            self.start_btn.text = "▶ Старт"
-            self.start_btn.disabled = False
+            Clock.schedule_once(
+                lambda dt: (
+                    setattr(self.start_btn, "text", "▶ Старт"),
+                    setattr(self.start_btn, "disabled", True)
+                )[1], 0
+            )
 
     def stop_monitoring(self):
         """Останавливает мониторинг."""
         self.service.log("🛑 Остановка по кнопке")
-        # Telethon можно остановить через event
         if self.service.telethon_client:
             self.service.telethon_client.stop()
         self.update_status_display("Остановлен", False)

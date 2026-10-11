@@ -7,7 +7,15 @@ import json
 import os
 from pathlib import Path
 
-CONFIG_FILE = Path("monitor_config.json")
+# Используем кэш-директорию Android
+if os.path.exists("/data/data/org.tgmonitor/files"):
+    CACHE_DIR = "/data/data/org.tgmonitor/files"
+else:
+    # Fallback для разработки на десктопе
+    CACHE_DIR = os.path.expanduser("~/.tgmonitor")
+
+os.makedirs(CACHE_DIR, exist_ok=True)
+CONFIG_FILE = Path(CACHE_DIR) / "monitor_config.json"
 
 
 def default_config() -> dict:

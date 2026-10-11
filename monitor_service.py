@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Callable, List
 
@@ -29,6 +30,7 @@ class MonitorService:
         self.log_messages: List[str] = []
         self._on_log_callback: Callable[[str], None] | None = None
         self._on_status_callback: Callable[[str, bool], None] | None = None
+        self._stop_event = threading.Event()
 
     def set_callbacks(
         self,
@@ -144,11 +146,87 @@ class MonitorService:
                         text=alert_text,
                         parse_mode="HTML",
                     )
-                    self.log(f"📨 Уведомление отправлено в канал '{event.chat.title}'")
+                    self.log(f"📨 Уведомление отправлено из '{event.chat.title}'")
                 except Exception as e:
                     self.log(f"❌ Ошибка отправки: {e}")
             else:
                 self.log("⚠️ Notify chat ID не установлен. Отправь /start боту")
+
+    # ==================== TELETHON LOOP ====================
+
+    async def _run_telethon(self, cfg: dict):
+        """Запускает Telethon клиент."""
+        self.log("📡 Подключение к Telegram (MTProto)...")
+        api_id = int(cfg["telethon_api_id"])
+
+        # Сохраняем сессию в кэш-директорию
+        session_dir = "/data/data/org.tgmonitor/files"
+        os.makedirs(session_dir, exist_ok=True)
+        session_path = os.path.join(session_dir, "monitor_session")
+
+        self.telethon_client = TelegramClient(
+            session_path,
+            api_id,
+            cfg["telethon_api_hash"],
+        )
+
+        # Авторизация
+        self.is_authenticating = True
+        self.set_status("Авторизация...", False)
+        self.log("🔐 Авторизация...")
+
+        try:
+            await self.telethon_client.start(phone=cfg["telethon_phone"])
+            self.log("✅ Авторизация успешна!")
+        except Exception as e:
+            self.log(f"❌ Ошибка авторизации: {e}")
+            self.set_status(f"Ошибка авторизации", False)
+            return
+
+        # Настраиваем обработчик каналов
+        channels = await self._parse_channels(cfg["channels"])
+        self.log(f"👀 Мониторинг: {', '.join(channels)}")
+        self.log(f"🔍 Фраза: '{cfg['target_phrase']}'")
+
+        @self.telethon_client.on(events.NewMessage(chats=channels))
+        async def handler(event):
+            await self._on_channel_message(event)
+
+        self.set_status("✅ Мониторинг активен", True)
+        self.log("🚀 Telethon запущен!")
+
+        # Запускаем до отключения
+        try:
+            await self.telethon_client.run_until_disconnected()
+        except Exception as e:
+            self.log(f"❌ Telethon ошибка: {e}")
+
+    # ==================== AIogram LOOP ====================
+
+    async def _run_bot(self, cfg: dict):
+        """Запускает бота уведомлений."""
+        self.log("🤖 Запуск бота уведомлений...")
+        self.bot = Bot(token=cfg["bot_token"])
+        self.dp = Dispatcher()
+
+        @self.dp.message(Command("start"))
+        async def cmd_start(message):
+            await self._cmd_start(message)
+
+        @self.dp.message(Command("help"))
+        async def cmd_help(message):
+            await self._cmd_help(message)
+
+        @self.dp.message(Command("status"))
+        async def cmd_status(message):
+            await self._cmd_status(message)
+
+        try:
+            self.set_status("✅ Мониторинг активен", True)
+            self.log("🤖 Бот запущен!")
+            await self.dp.start_polling(self.bot)
+        except Exception as e:
+            self.log(f"❌ Бот ошибка: {e}")
 
     # ==================== MAIN LOOP ====================
 
@@ -165,57 +243,12 @@ class MonitorService:
         self.set_status("Подключение...", False)
 
         try:
-            # === Telethon ===
-            self.log("📡 Подключение к Telegram (MTProto)...")
-            api_id = int(cfg["telethon_api_id"])
-            self.telethon_client = TelegramClient(
-                cfg.get("session_name", "monitor_session"),
-                api_id,
-                cfg["telethon_api_hash"],
-            )
+            # Запускаем Telethon и бота в РАЗНЫХ event loops
+            telethon_task = asyncio.create_task(self._run_telethon(cfg))
+            bot_task = asyncio.create_task(self._run_bot(cfg))
 
-            # Авторизация
-            self.is_authenticating = True
-            self.set_status("Авторизация...", False)
-            self.log("🔐 Авторизация...")
-
-            await self.telethon_client.start(phone=cfg["telethon_phone"])
-            self.log("✅ Авторизация успешна!")
-
-            # Настраиваем обработчик каналов
-            channels = await self._parse_channels(cfg["channels"])
-            self.log(f"👀 Мониторинг: {', '.join(channels)}")
-            self.log(f"🔍 Фраза: '{cfg['target_phrase']}'")
-
-            @self.telethon_client.on(events.NewMessage(chats=channels))
-            async def handler(event):
-                await self._on_channel_message(event)
-
-            # === Bot API ===
-            self.log("🤖 Запуск бота уведомлений...")
-            self.bot = Bot(token=cfg["bot_token"])
-            self.dp = Dispatcher()
-
-            @self.dp.message(Command("start"))
-            async def cmd_start(message):
-                await self._cmd_start(message)
-
-            @self.dp.message(Command("help"))
-            async def cmd_help(message):
-                await self._cmd_help(message)
-
-            @self.dp.message(Command("status"))
-            async def cmd_status(message):
-                await self._cmd_status(message)
-
-            self.set_status("✅ Мониторинг активен", True)
-            self.log("🚀 Мониторинг запущен!")
-
-            # Запускаем оба цикла параллельно
-            await asyncio.gather(
-                self.telethon_client.run_until_disconnected(),
-                self.dp.start_polling(self.bot),
-            )
+            # Ждём оба (или пока не остановим)
+            await asyncio.gather(telethon_task, bot_task, return_exceptions=True)
 
         except ValueError as e:
             self.log(f"❌ Ошибка данных: {e}")
@@ -232,9 +265,6 @@ class MonitorService:
         self.log("🛑 Остановка мониторинга...")
         if self.telethon_client:
             self.telethon_client.stop()
-        if self.bot:
-            # Dispatcher нужно остановить через event loop
-            pass
         self.set_status("Остановлен", False)
         self.log("🛑 Остановлено")
 
