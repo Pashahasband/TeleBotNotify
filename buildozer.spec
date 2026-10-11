@@ -55,7 +55,7 @@ python.storage = False
 logcat.tags = *:D
 
 # (int) Android package source version
-version = 0.1.0
+version = 0.1.1
 
 # (str) Comment
 comment = Мониторинг Telegram-каналов

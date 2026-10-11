@@ -144,6 +144,7 @@ class MonitorScreen(Screen):
         super().__init__(**kwargs)
         self.service = MonitorService()
         self.monitor_thread = None
+        self.monitor_loop = None
         self.setup_ui()
 
     def set_service(self, service):
@@ -293,6 +294,7 @@ class MonitorScreen(Screen):
         """Запускает мониторинг в отдельном потоке."""
         self.start_btn.text = "⏳ Запуск..."
         self.start_btn.disabled = True
+        self.stop_btn.disabled = False
 
         # Запускаем в отдельном потоке, чтобы не блокировать Kivy UI
         self.monitor_thread = threading.Thread(
@@ -302,26 +304,35 @@ class MonitorScreen(Screen):
 
     def _run_in_thread(self):
         """Запускает asyncio в отдельном потоке."""
+        loop = None
         try:
             loop = asyncio.new_event_loop()
+            self.monitor_loop = loop
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self.service.start_monitoring())
         except Exception as e:
             self.service.log(f"Критическая ошибка: {e}")
         finally:
+            if loop is not None:
+                loop.close()
+            self.monitor_loop = None
             Clock.schedule_once(
                 lambda dt: (
                     setattr(self.start_btn, "text", "▶ Старт"),
-                    setattr(self.start_btn, "disabled", True)
+                    setattr(self.start_btn, "disabled", False),
+                    setattr(self.stop_btn, "disabled", True),
                 )[1], 0
             )
 
     def stop_monitoring(self):
         """Останавливает мониторинг."""
         self.service.log("🛑 Остановка по кнопке")
-        if self.service.telethon_client:
-            self.service.telethon_client.stop()
-        self.update_status_display("Остановлен", False)
+        self.stop_btn.disabled = True
+        loop = self.monitor_loop
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self.service.stop_monitoring(), loop
+            )
 
     def clear_log(self):
         """Очищает лог."""

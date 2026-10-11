@@ -4,9 +4,6 @@
 """
 
 import asyncio
-import logging
-import os
-import threading
 from datetime import datetime
 from typing import Callable, List
 
@@ -30,7 +27,10 @@ class MonitorService:
         self.log_messages: List[str] = []
         self._on_log_callback: Callable[[str], None] | None = None
         self._on_status_callback: Callable[[str, bool], None] | None = None
-        self._stop_event = threading.Event()
+        self._tasks: set[asyncio.Task] = set()
+        self._stopping = False
+        self._telethon_ready = False
+        self._bot_ready = False
 
     def set_callbacks(
         self,
@@ -159,10 +159,8 @@ class MonitorService:
         self.log("📡 Подключение к Telegram (MTProto)...")
         api_id = int(cfg["telethon_api_id"])
 
-        # Сохраняем сессию в кэш-директорию
-        session_dir = "/data/data/org.tgmonitor/files"
-        os.makedirs(session_dir, exist_ok=True)
-        session_path = os.path.join(session_dir, "monitor_session")
+        session_name = cfg.get("session_name", "monitor_session")
+        session_path = app_config.DATA_DIR / session_name
 
         self.telethon_client = TelegramClient(
             session_path,
@@ -175,13 +173,8 @@ class MonitorService:
         self.set_status("Авторизация...", False)
         self.log("🔐 Авторизация...")
 
-        try:
-            await self.telethon_client.start(phone=cfg["telethon_phone"])
-            self.log("✅ Авторизация успешна!")
-        except Exception as e:
-            self.log(f"❌ Ошибка авторизации: {e}")
-            self.set_status(f"Ошибка авторизации", False)
-            return
+        await self.telethon_client.start(phone=cfg["telethon_phone"])
+        self.log("✅ Авторизация успешна!")
 
         # Настраиваем обработчик каналов
         channels = await self._parse_channels(cfg["channels"])
@@ -192,14 +185,11 @@ class MonitorService:
         async def handler(event):
             await self._on_channel_message(event)
 
-        self.set_status("✅ Мониторинг активен", True)
+        self._telethon_ready = True
+        self._set_ready_status()
         self.log("🚀 Telethon запущен!")
 
-        # Запускаем до отключения
-        try:
-            await self.telethon_client.run_until_disconnected()
-        except Exception as e:
-            self.log(f"❌ Telethon ошибка: {e}")
+        await self.telethon_client.run_until_disconnected()
 
     # ==================== AIogram LOOP ====================
 
@@ -221,12 +211,16 @@ class MonitorService:
         async def cmd_status(message):
             await self._cmd_status(message)
 
-        try:
-            self.set_status("✅ Мониторинг активен", True)
-            self.log("🤖 Бот запущен!")
-            await self.dp.start_polling(self.bot)
-        except Exception as e:
-            self.log(f"❌ Бот ошибка: {e}")
+        await self.bot.get_me()
+        self._bot_ready = True
+        self._set_ready_status()
+        self.log("🤖 Бот запущен!")
+        await self.dp.start_polling(self.bot)
+
+    def _set_ready_status(self):
+        if self._telethon_ready and self._bot_ready:
+            self.set_status("Мониторинг активен", True)
+            self.log("🚀 Мониторинг запущен!")
 
     # ==================== MAIN LOOP ====================
 
@@ -241,14 +235,25 @@ class MonitorService:
 
         cfg = self._get_config()
         self.set_status("Подключение...", False)
+        self._stopping = False
+        self._telethon_ready = False
+        self._bot_ready = False
 
         try:
-            # Запускаем Telethon и бота в РАЗНЫХ event loops
-            telethon_task = asyncio.create_task(self._run_telethon(cfg))
-            bot_task = asyncio.create_task(self._run_bot(cfg))
-
-            # Ждём оба (или пока не остановим)
-            await asyncio.gather(telethon_task, bot_task, return_exceptions=True)
+            # Both clients share one asyncio loop in the worker thread.
+            self._tasks = {
+                asyncio.create_task(self._run_telethon(cfg)),
+                asyncio.create_task(self._run_bot(cfg)),
+            }
+            done, pending = await asyncio.wait(
+                self._tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                exception = task.exception()
+                if exception:
+                    raise exception
+            if pending and not self._stopping:
+                raise RuntimeError("Один из клиентов неожиданно остановлен")
 
         except ValueError as e:
             self.log(f"❌ Ошибка данных: {e}")
@@ -257,14 +262,35 @@ class MonitorService:
             self.log(f"❌ Ошибка: {e}")
             self.set_status(f"Ошибка: {str(e)[:50]}", False)
         finally:
+            for task in self._tasks:
+                if not task.done():
+                    task.cancel()
+            if self._tasks:
+                await asyncio.gather(*self._tasks, return_exceptions=True)
+            self._tasks.clear()
+            await self._close_clients()
             self.is_running = False
             self.is_authenticating = False
+            if self._stopping:
+                self.set_status("Остановлен", False)
+
+    async def _close_clients(self):
+        if self.telethon_client and self.telethon_client.is_connected():
+            await self.telethon_client.disconnect()
+        if self.bot:
+            await self.bot.session.close()
 
     async def stop_monitoring(self):
         """Останавливает мониторинг."""
         self.log("🛑 Остановка мониторинга...")
-        if self.telethon_client:
-            self.telethon_client.stop()
+        self._stopping = True
+        if self.dp:
+            try:
+                await self.dp.stop_polling()
+            except RuntimeError:
+                pass
+        if self.telethon_client and self.telethon_client.is_connected():
+            await self.telethon_client.disconnect()
         self.set_status("Остановлен", False)
         self.log("🛑 Остановлено")
 
